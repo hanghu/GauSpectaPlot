@@ -30,9 +30,9 @@ class GroundState:
         self._readBasisInfo()
 
 
-        if MOdtype is ['Complex','complex','C','c']:
+        if MOdtype in ['Complex','complex','C','c']:
             self.MOdtype = np.complex
-        elif MOdtype is ['Real','real','R','r']:
+        elif MOdtype in ['Real','real','R','r']:
             self.MOdtype = np.float64
         else:
             raise TypeError('Please specifiy MO data type as Complex or Real')
