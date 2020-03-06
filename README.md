@@ -1,1 +1,1 @@
-# GauSpectaPlot
+# GauSpectraPlot
