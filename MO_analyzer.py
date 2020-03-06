@@ -22,17 +22,20 @@ class GroundState:
         #Read attributes
         assert isinstance(filename, str)
         assert isinstance(ghf, bool)
-        assert MOdtype in ['complex', 'real']
+        assert MOdtype in ['Complex','complex','C','c',
+                           'Real','real','R','r']
 
         self.filename = filename
         self.ghf = ghf
         self._readBasisInfo()
 
 
-        if MOdtype is 'complex':
+        if MOdtype is ['Complex','complex','C','c']:
             self.MOdtype = np.complex
-        else:
+        elif MOdtype is ['Real','real','R','r']
             self.MOdtype = np.float64
+        else:
+            raise TypeError('Please specifiy MO data type as Complex or Real')
 
         self.overlapMatrix = None
         self.MOcoeffs = None
