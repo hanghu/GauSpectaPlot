@@ -124,7 +124,7 @@ class GroundState:
 
         for line in f:
             if not foundPopInfo:
-                if line == '            Population analysis using the SCF Density.\n': 
+                if line[:7] == ' (Enter' and line.split('/')[-1] == 'l601.exe)\n': 
                     foundPopInfo = True
                 continue
 
@@ -188,6 +188,8 @@ class GroundState:
                     if (not foundAOType): foundAOType = True
 
         f.close()
+        
+        if not foundPopInfo: raise ValueError('No MO coefficient in the log file')
 
         # assign eigenvalues
         self.eigenvalues = myEigenvalues
