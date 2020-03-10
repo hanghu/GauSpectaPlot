@@ -64,7 +64,7 @@ def spectrum_boardening(E, I, E_range=None, resol=None, lineshape='G',
     else:
         E_range = (np.min(E)-FWHM_min, np.max(E)+FWHM_min+resol)
 
-    Ex = np.arange(E_range[0]-shift, E_range[1]-shift, resol)
+    Ex = np.arange(E_range[0], E_range[1], resol)
     Iy = np.zeros(len(Ex))
 
     for i in range(len(E)):
@@ -113,7 +113,7 @@ def plot_spectrum(E,I,data=None,E_range=None,color='C7',linewidth=3,
     # fill valence area for DOS
     if fill_valence:
         assert E_HOMO is not None
-        E_HOMO_idx = np.argmax(plt_E > E_HOMO)
+        E_HOMO_idx = np.argmax(plt_E > E_HOMO) if plt_E[-1] >= E_HOMO else -1 
         if(fill_color is None): fill_color = color
         ax.fill_between(plt_E[:E_HOMO_idx], plt_I[:E_HOMO_idx], 
                         color=fill_color, alpha=fill_alpha)
