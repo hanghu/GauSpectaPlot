@@ -14,7 +14,7 @@ class GroundState:
     This includes the overlap matrix and detailed MO coefficients.
     '''
 
-    def __init__(self,filename, ghf=True, MOdtype='complex'):
+    def __init__(self,filename, ghf=True, rhf=True, MOdtype='complex'):
         '''
         FUTURE: Uses the filename to set basic attributes about
         the wavefunction and allocates appropriate space.
@@ -22,13 +22,14 @@ class GroundState:
         #Read attributes
         assert isinstance(filename, str)
         assert isinstance(ghf, bool)
+        assert isinstance(rhf,bool)
         assert MOdtype in ['Complex','complex','C','c',
                            'Real','real','R','r']
 
         self.filename = filename
         self.ghf = ghf
+        self.rhf = rhf and ghf
         self._readBasisInfo()
-
 
         if MOdtype in ['Complex','complex','C','c']:
             self.MOdtype = np.complex
@@ -36,17 +37,20 @@ class GroundState:
             self.MOdtype = np.float64
         else:
             raise TypeError('Please specifiy MO data type as Complex or Real')
-
+        
         self.overlapMatrix = None
         self.MOcoeffs = None
         self.AOtypes = None
         self.atomList = None
         self.HOMO = None
         self.LUMO = None
-        # self.AOtypes = []
         self.eigenvalues = np.empty(self.Ne)
-        # self.RSvec = np.empty(self.N)
-        # self.Lvec = np.empty(self.N)
+        # UHF Case: 
+        if(not self.rhf): 
+            self.MOcoeffs_b = None
+            self.HOMO_b = None
+            self.LUMO_b = None
+            self.eigenvalues_b = None        
 
         return
 
@@ -61,7 +65,7 @@ class GroundState:
                 if 'primitive' in line and 'gaussians,' in line:
                     self.nBas = int(line[0])
                     line = f.readline().split()
-                    self.Ne = int(line[0]) + int(line[3])
+                    self.Ne = [int(line[0]), int(line[3])]
                     #print(self.nBas)
                     #print(self.Ne)
                     foundBasisInfo = True
@@ -74,8 +78,9 @@ class GroundState:
             else:
                 self.nSpinBas = self.nBas
 
-            print('NUM_OF_SPACICAL_BASIS=%i, NUM_OF_ELECTRONS=%i'
-                  %(self.nBas, self.Ne))
+            print('NUM_OF_SPACICAL_BASIS=%i'  % self.nBas + ', ' + 
+                  'NUM_OF_ALPHA_ELECTRONS=%i' % self.Ne[0] + ', ' +
+                  'NUM_OF_BETA_ELECTRONS=%i'  % self.Ne[1])
         return
 
     def parseOverlaps(self):
@@ -101,42 +106,65 @@ class GroundState:
     def parseMOs(self):
         """
         Get MO Coefficients and parse it into different atoms associated with AO types
+        
+        Error_shooting:
+            1.  'local variable 'atom' referenced before assignment':
+                 check MOdtype, ghf, rhf input 
         """
         self.atomList = []
         self.AOtypes   = []
-        myEigenvalues = np.zeros(self.nSpinBas, dtype=np.float64)
+        
 
         if self.MOdtype == np.complex and self.ghf:
             nAOLines = 4
-        elif self.MOdtype == np.complex or self.ghf:
+        elif self.MOdtype == np.complex and not self.ghf: 
             nAOLines = 2
         else:
             nAOLines = 1
 
+        moEigenvalues = np.zeros(self.nSpinBas, dtype=np.float64)
         coeffs_df = pd.DataFrame(index=range(nAOLines*self.nBas))
-
+        
+        if not self.rhf:
+            moEigenvalues_b = np.zeros(self.nSpinBas, dtype=np.float64)
+            coeffs_df_b = pd.DataFrame(index=range(nAOLines*self.nBas))
+        
         f = open(self.filename,'r')
         iterMO = 0
         iterAO = -1
-        foundPopInfo  = False
-        foundAOType   = False
-        foundHOMOLUMO = False
-
+        foundPopInfo   = False
+        foundAOType    = False
+        foundHOMOLUMO  = False
+        parseBetaMOs = False
+ 
         for line in f:
             if not foundPopInfo:
-                if line[:7] == ' (Enter' and line.split('/')[-1] == 'l601.exe)\n': 
+                if len(line) > 10 and line[-10:-2] == 'l601.exe': 
                     foundPopInfo = True
                 continue
 
-            if iterMO == self.nSpinBas: break
+            if iterMO == self.nSpinBas: 
+                if(not self.rhf and not parseBetaMOs): 
+                    parseBetaMOs = True
+                    iterMO = 0
+                    iterAO = -1
+                else:
+                    break
 
             if not foundHOMOLUMO:
                 if re.search('occ. eigenvalues', line):
-                    OCCs = line.split()
+                    OCCs_stack = line.split()
                 elif re.search('virt. eigenvalues', line):
-                    self.HOMO = float(OCCs[-1])
-                    self.LUMO = float(line[27:37])
-                    foundHOMOLUMO = True
+                    if self.HOMO is None:
+                        self.HOMO = float(OCCs_stack[-1])
+                        self.LUMO = float(line[27:37])
+                    
+                    if not self.rhf and self.HOMO_b is None:
+                        self.HOMO_b = float(OCCs_stack[-1])
+                        self.LUMO_b = float(line[27:37])
+                        foundHOMOLUMO = True
+                    else:
+                        foundHOMOLUMO = True
             
             if line[5:16] == 'Eigenvalues':
                 nMOCurIter = int((len(line) - 21) / 10)
@@ -147,10 +175,12 @@ class GroundState:
                 
                 for i in range(nMOCurIter):
                     iEig = eigs[10*i:10*(i+1)]
-                    if iEig[0] == '*':
-                        myEigenvalues[iMO] = np.nan
+                    iEig = float(iEig) if iEig[0] != '*' else np.nan
+                    if not parseBetaMOs:
+                        moEigenvalues[iMO] = iEig
                     else:
-                        myEigenvalues[iMO] = float(iEig)
+                        moEigenvalues_b[iMO] = iEig
+
                     iMO +=1
                     MONums.append(iMO)
                 #print(MONums)
@@ -181,8 +211,11 @@ class GroundState:
                     self.AOtypes.append([atom, quanNum])
 
                 if(iterAO == nAOLines*self.nBas):
-                    #print(rawCoeffs)
-                    coeffs_df = coeffs_df.join(pd.DataFrame(rawCoeffs,columns=MONums))
+                    if not parseBetaMOs:
+                        coeffs_df = coeffs_df.join(pd.DataFrame(rawCoeffs,columns=MONums))
+                    else:
+                        coeffs_df_b = coeffs_df_b.join(pd.DataFrame(rawCoeffs,columns=MONums))
+                        
                     iterAO = -1
                     iterMO += nMOCurIter
                     if (not foundAOType): foundAOType = True
@@ -192,7 +225,7 @@ class GroundState:
         if not foundPopInfo: raise ValueError('No MO coefficient in the log file')
 
         # assign eigenvalues
-        self.eigenvalues = myEigenvalues
+        self.eigenvalues = moEigenvalues
         coeffs_df = coeffs_df.applymap(float)
 
         if self.MOdtype == np.complex:
@@ -204,8 +237,20 @@ class GroundState:
             self.MOcoeffs = coeffs_real + coeffs_imag*1.0j
         else:
             self.MOcoeffs = coeffs_df.values
-        
-#        self.MOcoeffs =  self.MOcoeffs.T
+
+        if not self.rhf:
+            self.eigenvalues_b = moEigenvalues_b
+            coeffs_df_b = coeffs_df_b.applymap(float)
+
+            if self.MOdtype == np.complex:
+                # combine the real and imaginary parts
+                coeffs_raw = np.reshape(coeffs_df_b.values,
+                                        (self.nSpinBas,2*self.nSpinBas))
+                coeffs_real = coeffs_raw[:, :self.nSpinBas]
+                coeffs_imag = coeffs_raw[:, self.nSpinBas:]
+                self.MOcoeffs_b = coeffs_real + coeffs_imag*1.0j
+            else:
+                self.MOcoeffs_b = coeffs_df_b.values
 
         if self.ghf:
             # expand AOtypes
@@ -225,14 +270,14 @@ class GroundState:
         print('MO Coefficients and AOTypes have been Obtained')
         return
 
-    def gen_MOs_report(self, MO_list=None,E_range=None,report_detail=0, latex_format=False,
-                       selected_atoms_groups=None,return_analysis=False):
+    def gen_MOs_report(self, MO_list=None,E_range=None,report_detail=0,latex_format=False,
+                       selected_atoms_groups=None,spin='a',return_analysis=False):
         """
         generate MO components report:
 
         Args:
             MO_list: list or a range of MOs to be analyzed. default is all MOs.
-            report_details:
+            report_details: 4-6  and 10-12 ony works for GHF
                 0 ... no details, just a simple sanity check
                       C.conjugate * S * C = Idenity Matrix
 
@@ -253,23 +298,36 @@ class GroundState:
                12 ... same as 10, and projected to differenct basis
 
             latex_format: boolean, if True a latex table code will be produced
+            spin: for RHF and GHF, it should be 'Alpha' all the time,
+                  for UHF, it could be 'Alpha' or 'Beta'
             return_analysis: retrun the report as an array of dict, no printing will be generated
         """
         if self.MOcoeffs is None: self.parseMOs()
         if self.overlapMatrix is None: self.parseOverlaps()
         if MO_list is None: MO_list = range(1,self.MOcoeffs.shape[1]+1)
         
+        spin = spin if not self.ghf and not self.rhf else 'a'
+
+        if spin in ['A','a','Alpha','alpha']:
+            MOcoeffs = self.MOcoeffs
+            eigenvalues = self.eigenvalues
+        elif spin in ['B', 'b', 'Beta', 'beta']:
+            print('Doing the Beta Part Analysis')
+            MOcoeffs =self.MOcoeffs_b
+            eigenvalues = self.eigenvalues_b
+        else:
+            raise TypeError('Wrong Spin Type')
+        
         if E_range is not None:
             assert len(E_range) == 2 and E_range[0] <= E_range[1]
             new_MO_list = []
             for mo in MO_list:
                 #print(mo)
-                E_mo =  self.eigenvalues[mo-1] 
+                E_mo =  eigenvalues[mo-1] 
                 if E_mo >= E_range[0] and  E_mo <= E_range[1]: new_MO_list.append(mo) 
             # assert it's energy range
             if len(new_MO_list) == 0: return
             MO_list = new_MO_list
-
 
         # if there is selected atosm
         SAG_On = True if selected_atoms_groups is not None else False
@@ -330,7 +388,7 @@ class GroundState:
         
         
         for MO in MO_list:
-            colvec = self.MOcoeffs[:,MO-1].copy()
+            colvec = MOcoeffs[:,MO-1].copy()
             overlap_dot_colvec = np.dot(self.overlapMatrix,colvec)
             rowvec = np.conjugate(colvec.T)
             value = np.dot(rowvec,overlap_dot_colvec)
@@ -338,9 +396,9 @@ class GroundState:
             if return_analysis:
                 MO_result = {'MO':MO}
                 MO_result['Total Projection'] = value.real
-                MO_result['Energy'] = self.eigenvalues[MO-1]
+                MO_result['Energy'] = eigenvalues[MO-1]
             elif not latex_format:
-                print('>> MO %i : %7.4f; Energy: %7.5f' % (MO,value.real,self.eigenvalues[MO-1]))
+                print('>> MO %i : %7.4f; Energy: %7.5f' % (MO,value.real,eigenvalues[MO-1]))
             
             if report_detail > 0:
                 if(latex_format):
@@ -462,5 +520,9 @@ class GroundState:
 
 if __name__ == '__main__':
     filename = 'dummy_DOS.log'
-    gs = GroundState(filename,ghf=False,MOdtype='real')
+    # TODO: auto detection 
+    # For GHF: ghf=True,rhf=True,MOdtype='complex'
+    # For RHF: ghf=False,rhf=True,MOdtype='real' 
+    # For UHF: ghf=False,rhf=False,MOdtype='real' 
+    gs = GroundState(filename,ghf=False,rhf=True,MOdtype='real')
     gs.gen_MOs_report(MO_list=range(1,10),report_detail=2)

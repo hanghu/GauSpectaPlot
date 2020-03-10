@@ -5,6 +5,64 @@ import numpy as np
 import pandas as pd
 import re
 
+def match_full_line(pattern,line):
+    return line == pattern
+
+def match_partial_line(pattern, line):
+    return len(line) >= len(pattern) and line[0:len(pattern)] == pattern
+
+def search_line_regex(pattern, line):
+    return re.serach(pattern,line)
+
+def read_log_block(filename,start_id,end_id=None,match_method='full line',
+                   N_block=None,n_lines_per_block=None):
+    """simplied 'grep' in python"""
+
+    if match_method in ['F', 'f', 'full line']:
+        match_func = match_full_line
+    elif match_method in ['P', 'p', 'partial line']:
+        match_func = match_partial_line
+    elif match_method in ['R', 'r', 'regex', 'regular expression']:
+        match_func = search_line_regex
+    elif callable(match_method):
+        match_func = match_method
+    else:
+        raise TypeError('Match method are not defined')
+
+    if end_id is None and n_lines_per_block is None:
+        n_lines_per_block = 1
+    
+    f = open(filename,'r')
+    foundBlock = False
+    blocks = []
+    line_count = 0 if N_block is not None else None
+    
+    for line in f:
+        if len(blocks) == N_block: break
+
+        if not foundBlock:
+            if match_func(start_id, line):
+                foundBlock=True
+                block_i = [line]
+            continue
+
+        if foundBlock:
+            if end_id is not None and match_func(end_id, line):
+                block_i.append(line)
+                blocks.append(block_i)
+                foundBlock = False
+                continue
+            
+            if len(block_i) == n_lines_per_block:
+                blocks.append(block_i)
+                foundBlock = False
+                continue
+
+            block_i.append(line)
+
+    f.close()
+    return blocks
+
 def gaustr_to_num(x,convert_func=float):
     if not isinstance(x, str): return x
     
