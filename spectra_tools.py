@@ -75,7 +75,7 @@ def spectrum_boardening(E, I, E_range=None, resol=None, lineshape='G',
 
     return Ex, Iy
 
-def plot_spectrum(E,I,data=None,E_range=None,color='C7',linewidth=3, 
+def plot_spectrum(E,I=None,data=None,E_range=None,color='C7',linewidth=3, 
                   label=None,ax=None,
                   broadening=True,shift=0.,lineshape='G',output_resol=None,
                   FWHM=1.0,normalize=False,
@@ -84,15 +84,20 @@ def plot_spectrum(E,I,data=None,E_range=None,color='C7',linewidth=3,
     """
       plot spectrum with input  
     """
+    
     if data is None:
+        if I is None: I = np.ones(len(E))
         plt_E = E
         plt_I = I
     else:
         assert isinstance(data, pd.DataFrame)
         assert isinstance(E,str)
-        assert isinstance(I,str)
         plt_E = data[E]
-        plt_I = data[I]
+        if I is None: 
+            I = np.ones(len(data[E]))
+        else:
+            assert isinstance(I,str)
+            plt_I = data[I]
     
     # get data range
     E_interval = plt_E[1] - plt_E[0] if output_resol is None else output_resol
