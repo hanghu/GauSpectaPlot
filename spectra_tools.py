@@ -76,7 +76,7 @@ def spectrum_boardening(E, I, E_range=None, resol=None, lineshape='G',
     return Ex, Iy
 
 def plot_spectrum(E,I=None,data=None,E_range=None,color='C7',linewidth=3, 
-                  label=None,ax=None,
+                  label=None,ax=None,display='h',
                   broadening=True,shift=0.,lineshape='G',output_resol=None,
                   FWHM=1.0,normalize=False,
                   fill_valence=False,E_HOMO=None,fill_color=None,fill_alpha=0.5):
@@ -99,6 +99,8 @@ def plot_spectrum(E,I=None,data=None,E_range=None,color='C7',linewidth=3,
             assert isinstance(I,str)
             plt_I = data[I]
     
+    assert display in ['v','h']
+
     # get data range
     E_interval = plt_E[1] - plt_E[0] if output_resol is None else output_resol
     if E_range is None: E_range = (min(plt_E), max(plt_E)+E_interval)
@@ -113,14 +115,23 @@ def plot_spectrum(E,I=None,data=None,E_range=None,color='C7',linewidth=3,
         fig,ax =plt.subplots(figsize=(8,6))
     
     # plot curve
-    ax.plot(plt_E, plt_I, label=label, color=color, linewidth=linewidth)
-    
+    if(display == 'h'):
+        ax.plot(plt_E, plt_I, label=label, color=color, linewidth=linewidth)
+    else:
+        ax.plot(plt_I, plt_E, label=label, color=color, linewidth=linewidth)
+
     # fill valence area for DOS
     if fill_valence:
         assert E_HOMO is not None
         E_HOMO_idx = np.argmax(plt_E > E_HOMO) if plt_E[-1] >= E_HOMO else -1 
         if(fill_color is None): fill_color = color
-        ax.fill_between(plt_E[:E_HOMO_idx], plt_I[:E_HOMO_idx], 
-                        color=fill_color, alpha=fill_alpha)
+        
+        if(display == 'h'):
+            ax.fill_between(plt_E[:E_HOMO_idx], plt_I[:E_HOMO_idx], 
+                            color=fill_color, alpha=fill_alpha)
+        else:
+            y2_pos = plt_E[np.argmax(plt_I[:E_HOMO_idx])]
+            ax.fill_between(plt_I[:E_HOMO_idx],plt_E[:E_HOMO_idx],y2_pos,linewidth=0, 
+                            color=fill_color, alpha=fill_alpha)
         
     return ax

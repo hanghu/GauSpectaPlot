@@ -230,10 +230,11 @@ class GroundState:
 
         if self.MOdtype == np.complex:
             # combine the real and imaginary parts
+            nMO = coeffs_df.values.shape[1]
             coeffs_raw = np.reshape(coeffs_df.values,
-                                    (self.nSpinBas,2*self.nSpinBas))
-            coeffs_real = coeffs_raw[:, :self.nSpinBas]
-            coeffs_imag = coeffs_raw[:, self.nSpinBas:]
+                                    (self.nSpinBas,2*nMO))
+            coeffs_real = coeffs_raw[:, :nMO]
+            coeffs_imag = coeffs_raw[:, nMO:]
             self.MOcoeffs = coeffs_real + coeffs_imag*1.0j
         else:
             self.MOcoeffs = coeffs_df.values
@@ -244,14 +245,22 @@ class GroundState:
 
             if self.MOdtype == np.complex:
                 # combine the real and imaginary parts
+                nMO = coeffs_df.values.shape[1]
                 coeffs_raw = np.reshape(coeffs_df_b.values,
-                                        (self.nSpinBas,2*self.nSpinBas))
-                coeffs_real = coeffs_raw[:, :self.nSpinBas]
-                coeffs_imag = coeffs_raw[:, self.nSpinBas:]
+                                        (self.nSpinBas,2*nMO))
+                coeffs_real = coeffs_raw[:, :nMO]
+                coeffs_imag = coeffs_raw[:, nMO:]
                 self.MOcoeffs_b = coeffs_real + coeffs_imag*1.0j
             else:
                 self.MOcoeffs_b = coeffs_df_b.values
 
+        new_aotypes = []
+        for ao in self.AOtypes:
+            if re.search(r'[XYZ]{2}',ao[1]):
+                ao[1] = ao[1][:-2] + 'D' + ao[1][-2:]
+            new_aotypes.append(ao)    
+        self.AOtypes = new_aotypes 
+        
         if self.ghf:
             # expand AOtypes
             AOtypes_a = [(ao[0] + ' a',ao[1]) for ao in self.AOtypes]
@@ -259,13 +268,6 @@ class GroundState:
             self.AOtypes = list(map(lambda x: tuple(x),
                 np.reshape(np.array([AOtypes_a, AOtypes_b]).T,
                            (2,self.nSpinBas)).T))
-        else:
-            new_aotypes = []
-            for ao in self.AOtypes:
-                if re.search(r'[XYZ]{2}',ao[1]):
-                    ao[1] = ao[1][:-2] + 'D' + ao[1][-2:]
-                new_aotypes.append((ao[0] + ' a',ao[1]))    
-            self.AOtypes = new_aotypes 
 
         print('MO Coefficients and AOTypes have been Obtained')
         return
@@ -368,7 +370,7 @@ class GroundState:
                 angtypes = np.array(angtypes)
         
         if report_detail > 0:
-            if(not detailedSpin):
+            if(self.ghf and not detailedSpin):
                 atoms = list(map(lambda x: x[0][:-2], AOtypes))
             else:
                 atoms = list(map(lambda x: x[0], AOtypes))
@@ -385,7 +387,6 @@ class GroundState:
                 print_info += ' & ' + angtype_i
             print_info += ' \\'+'\\'
             print(print_info)
-        
         
         for MO in MO_list:
             colvec = MOcoeffs[:,MO-1].copy()
@@ -519,10 +520,12 @@ class GroundState:
 #---------------------------------------------
 
 if __name__ == '__main__':
-    filename = 'dummy_DOS.log'
+    filename = 'ga_x2c.log'
     # TODO: auto detection 
     # For GHF: ghf=True,rhf=True,MOdtype='complex'
     # For RHF: ghf=False,rhf=True,MOdtype='real' 
     # For UHF: ghf=False,rhf=False,MOdtype='real' 
-    gs = GroundState(filename,ghf=False,rhf=True,MOdtype='real')
-    gs.gen_MOs_report(MO_list=range(1,10),report_detail=2)
+    gs = GroundState(filename,ghf=True,rhf=True,MOdtype='complex')
+    #gs.parseMOs()
+    #print(gs.MOcoeffs.shape)
+    gs.gen_MOs_report(report_detail=2)
