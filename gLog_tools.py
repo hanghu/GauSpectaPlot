@@ -87,9 +87,10 @@ def read_matrix(filename, identifier, matrix_format='full'):
                              'lower triangle','LT', 'lt'] 
     
     f = open(filename,'r')
+    lenRowId = 7
     foundIdentifier = False
     foundMatrix = False
-    emptyRowId  = ' '*8
+    emptyRowId  = ' '*lenRowId
     mat_raw = None
     identifier += '\n'
 
@@ -111,7 +112,7 @@ def read_matrix(filename, identifier, matrix_format='full'):
             nRow = 0
 
         if(foundMatrix):
-            if(len(line) < 8):
+            if(len(line) < lenRowId):
                 if(mat_raw is None):
                     mat_raw = pd.DataFrame(cur_cols_raw,index=curRows,columns=curCols)
                 else:
@@ -119,7 +120,7 @@ def read_matrix(filename, identifier, matrix_format='full'):
                                                         index=curRows,columns=curCols))  
                 break
 
-            elif(line[:8] == emptyRowId):
+            elif(line[:lenRowId] == emptyRowId):
                # Col number line
                if(first and firstFinished): first = False
 
@@ -145,7 +146,7 @@ def read_matrix(filename, identifier, matrix_format='full'):
                 iterRow = -1
                 
                 try: # TODO: add function to deal with spin 
-                    iterRow = int(line[:7])
+                    iterRow = int(line[:lenRowId])
                 except ValueError:
                     #print(curCols)
                     if(mat_raw is None):
