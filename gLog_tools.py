@@ -6,7 +6,7 @@ import pandas as pd
 import re
 
 def match_full_line(pattern,line):
-    return line == pattern
+    return line == pattern 
 
 def match_partial_line(pattern, line):
     return len(line) >= len(pattern) and line[0:len(pattern)] == pattern
@@ -20,7 +20,7 @@ def read_log_block(filename,start_id,end_id=None,match_method='full line',
 
     if match_method in ['F', 'f', 'full line']:
         match_func = match_full_line
-    elif match_method in ['P', 'p', 'partial line']:
+    elif match_method in ['P', 'p', 'partial initial line']:
         match_func = match_partial_line
     elif match_method in ['R', 'r', 'regex', 'regular expression']:
         match_func = search_line_regex
@@ -40,25 +40,22 @@ def read_log_block(filename,start_id,end_id=None,match_method='full line',
     for line in f:
         if len(blocks) == N_block: break
 
-        if not foundBlock:
-            if match_func(start_id, line):
-                foundBlock=True
-                block_i = [line]
-            continue
-
         if foundBlock:
             if end_id is not None and match_func(end_id, line):
                 block_i.append(line)
                 blocks.append(block_i)
                 foundBlock = False
-                continue
-            
-            if len(block_i) == n_lines_per_block:
+            elif len(block_i) == n_lines_per_block:
                 blocks.append(block_i)
                 foundBlock = False
-                continue
-
-            block_i.append(line)
+            else:
+                block_i.append(line)
+        
+        if not foundBlock:
+            if match_func(start_id, line):
+                foundBlock=True
+                block_i = [line]
+            continue
 
     f.close()
     return blocks
@@ -73,35 +70,59 @@ def gaustr_to_num(x,convert_func=float):
     
     return convert_func(x)
 
-def read_matrix(filename, identifier, matrix_format='full'):
+def read_matrix(filename, identifier=None, match_method='full line',
+                row_id_len=8, matrix_format='full'):
     """
         Module to read a printed matrix from gaussian output log 
         file with a identifier line. Note that identifier must 
         be a complete line before a printed Matrix.
     """
 
-    assert isinstance(filename, str)
-    assert isinstance(identifier, str)
+    assert isinstance(filename, str) or isinstance(filename, list)
+    if identifier != None: 
+        assert isinstance(identifier, str)
+        foundIdentifier = False
+    else:
+        identifier = 'Matrix'
+        foundIdentifier = True
+    
     assert matrix_format in ['full','F', 'f', 
                              'upper triangle','UT','ut', 
                              'lower triangle','LT', 'lt'] 
     
-    f = open(filename,'r')
-    foundIdentifier = False
+    if isinstance(filename, str):
+        f = open(filename,'r')
+    else:
+        f = filename
+    
+    if match_method in ['F', 'f', 'full line']:
+        match_func = match_full_line
+    elif match_method in ['P', 'p', 'partial initial line']:
+        match_func = match_partial_line
+    elif match_method in ['R', 'r', 'regex', 'regular expression']:
+        match_func = search_line_regex
+    elif callable(match_method):
+        match_func = match_method
+    else:
+        raise TypeError('Match method are not defined')
+    
     foundMatrix = False
-    emptyRowId  = ' '*8
     mat_raw = None
-    identifier += '\n'
+    curRows = []
+    cur_cols_raw = []
+    curCols = [] 
+    empty_row_id = ' ' * row_id_len
 
     for line in f:
+        
+        if len(line.split()) == 0: continue 
 
         if not foundIdentifier:
-            if (line == identifier): foundIdentifier = True
+            if match_func(identifier, line): foundIdentifier = True
             continue
         
         if(not foundMatrix and foundIdentifier):
             exam_line = line.split()
-            if len(exam_line)== 0: continue
             start_indicator = [str(i+1) for i in range(len(exam_line))]
             if exam_line != start_indicator: continue
             
@@ -111,15 +132,8 @@ def read_matrix(filename, identifier, matrix_format='full'):
             nRow = 0
 
         if(foundMatrix):
-            if(len(line) < 8):
-                if(mat_raw is None):
-                    mat_raw = pd.DataFrame(cur_cols_raw,index=curRows,columns=curCols)
-                else:
-                    mat_raw = mat_raw.join(pd.DataFrame(cur_cols_raw,
-                                                        index=curRows,columns=curCols))  
-                break
 
-            elif(line[:8] == emptyRowId):
+            if(line[:row_id_len] == empty_row_id):
                # Col number line
                if(first and firstFinished): first = False
 
@@ -145,7 +159,7 @@ def read_matrix(filename, identifier, matrix_format='full'):
                 iterRow = -1
                 
                 try: # TODO: add function to deal with spin 
-                    iterRow = int(line[:7])
+                    iterRow = int(line[:row_id_len])
                 except ValueError:
                     #print(curCols)
                     if(mat_raw is None):
@@ -153,6 +167,7 @@ def read_matrix(filename, identifier, matrix_format='full'):
                     else:
                         mat_raw = mat_raw.join(pd.DataFrame(cur_cols_raw,
                                                             index=curRows,columns=curCols))  
+                    curRows = []
                     break
 
                 # Exam invalied conditions and add values
@@ -165,8 +180,16 @@ def read_matrix(filename, identifier, matrix_format='full'):
                 curRows.append(iterRow) 
                 cur_cols_raw.append(line.split()[1:])
 
+    if len(curRows) != 0:
+        if(mat_raw is None):
+            mat_raw = pd.DataFrame(cur_cols_raw,index=curRows,columns=curCols)
+        else:    
+            mat_raw = mat_raw.join(pd.DataFrame(cur_cols_raw,
+                                                index=curRows,columns=curCols))  
 
-    f.close()
+
+    if isinstance(filename, str): f.close()
+
     if(mat_raw is not None):
         print(identifier[:-1]+' has been obtained')
     else:

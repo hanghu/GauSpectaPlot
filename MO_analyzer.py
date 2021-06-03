@@ -32,7 +32,7 @@ class GroundState:
         self._readBasisInfo()
 
         if MOdtype in ['Complex','complex','C','c']:
-            self.MOdtype = np.complex
+            self.MOdtype = np.complex128
         elif MOdtype in ['Real','real','R','r']:
             self.MOdtype = np.float64
         else:
@@ -92,13 +92,14 @@ class GroundState:
         
         self.overlapMatrix = read_matrix(self.filename, 
                                          identifier=' *** Overlap *** ',
+                                         match_method='p',
                                          matrix_format='lt')
 
         self.overlapMatrix = self.overlapMatrix + np.tril(self.overlapMatrix,k=-1).T
 
         if self.ghf:
             # expand overlap matrix to two component if ghf
-            identity = np.array([[1.0,0.0],[0.0,1.0]],dtype=np.complex)
+            identity = np.array([[1.0,0.0],[0.0,1.0]],dtype=np.complex128)
             self.overlapMatrix = np.kron(self.overlapMatrix, identity)
 
         return
@@ -115,9 +116,9 @@ class GroundState:
         self.AOtypes   = []
         
 
-        if self.MOdtype == np.complex and self.ghf:
+        if self.MOdtype == np.complex128 and self.ghf:
             nAOLines = 4
-        elif self.MOdtype == np.complex and not self.ghf: 
+        elif self.MOdtype == np.complex128 and not self.ghf: 
             nAOLines = 2
         else:
             nAOLines = 1
@@ -228,7 +229,7 @@ class GroundState:
         self.eigenvalues = moEigenvalues
         coeffs_df = coeffs_df.applymap(float)
 
-        if self.MOdtype == np.complex:
+        if self.MOdtype == np.complex128:
             # combine the real and imaginary parts
             nMO = coeffs_df.values.shape[1]
             coeffs_raw = np.reshape(coeffs_df.values,
@@ -243,7 +244,7 @@ class GroundState:
             self.eigenvalues_b = moEigenvalues_b
             coeffs_df_b = coeffs_df_b.applymap(float)
 
-            if self.MOdtype == np.complex:
+            if self.MOdtype == np.complex128:
                 # combine the real and imaginary parts
                 nMO = coeffs_df.values.shape[1]
                 coeffs_raw = np.reshape(coeffs_df_b.values,
