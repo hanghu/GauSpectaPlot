@@ -523,8 +523,8 @@ class GroundState:
 if __name__ == '__main__':
     filename = 'ga_x2c.log'
     # TODO: auto detection 
-    # For GHF: ghf=True,rhf=True,MOdtype='complex'
-    # For RHF: ghf=False,rhf=True,MOdtype='real' 
+    # For GHF: ghf=True, rhf=True, MOdtype='complex'
+    # For RHF: ghf=False,rhf=True, MOdtype='real' 
     # For UHF: ghf=False,rhf=False,MOdtype='real' 
     gs = GroundState(filename,ghf=True,rhf=True,MOdtype='complex')
     #gs.parseMOs()
